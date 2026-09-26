@@ -177,3 +177,6 @@ try {
 }
 
 Write-Host "Windows installer smoke test passed."
+# The refusal checks leave $LASTEXITCODE nonzero on purpose; GitHub's pwsh
+# steps exit with it unless the script exits explicitly.
+exit 0
