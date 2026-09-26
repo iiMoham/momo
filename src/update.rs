@@ -798,8 +798,10 @@ fn install_windows_update_with_installer(
 
 #[cfg(windows)]
 fn windows_installed_herdr_exe_path() -> Result<PathBuf, String> {
-    if let Some(install_dir) = env::var_os("HERDR_INSTALL_DIR").filter(|value| !value.is_empty()) {
-        return Ok(PathBuf::from(install_dir).join("herdr.exe"));
+    let exe = format!("{}.exe", crate::brand::CLI_NAME);
+    // Same override and default as packaging/windows/install.ps1.
+    if let Some(install_dir) = env::var_os("MOMO_INSTALL_DIR").filter(|value| !value.is_empty()) {
+        return Ok(PathBuf::from(install_dir).join(exe));
     }
 
     let local_app_data =
@@ -808,7 +810,7 @@ fn windows_installed_herdr_exe_path() -> Result<PathBuf, String> {
         .join("Programs")
         .join("MoMo")
         .join("bin")
-        .join("herdr.exe"))
+        .join(exe))
 }
 
 // ---------------------------------------------------------------------------
@@ -3660,6 +3662,7 @@ mod tests {
         ] {
             std::fs::write(dir.join(format!("momo-{target}")), target).unwrap();
         }
+        std::fs::write(dir.join("momo-windows-x86_64.zip"), "windows-x86_64").unwrap();
         let status = std::process::Command::new("python3")
             .arg(root.join("packaging/momo/release_manifest.py"))
             .args([

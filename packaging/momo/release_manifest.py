@@ -25,7 +25,13 @@ import re
 import sys
 from pathlib import Path
 
-TARGETS = ("linux-x86_64", "linux-aarch64", "macos-x86_64", "macos-aarch64")
+TARGETS = (
+    "linux-x86_64",
+    "linux-aarch64",
+    "macos-x86_64",
+    "macos-aarch64",
+    "windows-x86_64",
+)
 KEEP_RELEASES = 20
 TAG = re.compile(r"^momo-v(?P<base>\d+\.\d+\.\d+)-momo\.(?P<release>[1-9]\d*)$")
 
@@ -55,6 +61,13 @@ def cargo_version(root: Path) -> str:
     return match.group(1)
 
 
+def asset_name(target: str) -> str:
+    """Release file for a target: a bare binary, or on Windows a zip that
+    carries `momo.exe` next to its app-local ConPTY runtime."""
+    name = f"momo-{target}"
+    return f"{name}.zip" if target.startswith("windows-") else name
+
+
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -82,7 +95,7 @@ def build(
     assets: dict[str, dict[str, str]] = {}
     sums = []
     for target in TARGETS:
-        name = f"momo-{target}"
+        name = asset_name(target)
         path = assets_dir / name
         if not path.is_file():
             raise ReleaseError(f"missing release asset {path}")

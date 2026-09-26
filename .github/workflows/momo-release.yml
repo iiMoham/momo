@@ -1,8 +1,10 @@
 name: MoMo release
 
 # Publishes a MoMo release when a tag like `momo-v0.9.1-momo.1` is pushed:
-# builds macOS and Linux binaries, then attaches them with SHA256SUMS,
-# latest.json (read by `momo update` and remote installs), and install.sh.
+# builds macOS and Linux binaries and the Windows package (momo.exe with its
+# app-local ConPTY runtime), then attaches them with SHA256SUMS, latest.json
+# (read by `momo update` and remote installs), install.sh, install.ps1, and
+# install.cmd.
 # The annotated tag message becomes the release notes.
 
 on:
@@ -71,7 +73,14 @@ jobs:
             os: macos-latest
             name: momo-macos-aarch64
             smoke: true
+          - target: x86_64-pc-windows-msvc
+            os: windows-2022
+            name: momo-windows-x86_64.zip
+            smoke: true
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     env:
       LIBGHOSTTY_VT_OPTIMIZE: ReleaseFast
       LIBGHOSTTY_VT_SIMD: "true"
@@ -117,10 +126,11 @@ jobs:
         run: cargo build --release --locked --target "$TARGET"
 
       - name: Package
+        if: runner.os != 'Windows'
         run: cp "target/$TARGET/release/momo" "$ASSET"
 
       - name: Check version identity
-        if: matrix.smoke
+        if: matrix.smoke && runner.os != 'Windows'
         run: |
           expected="momo ${GITHUB_REF_NAME#momo-v}"
           actual="$("./$ASSET" --version)"
@@ -135,6 +145,24 @@ jobs:
           report="$(file "$ASSET"; ldd "$ASSET" 2>&1 || true)"
           echo "$report"
           echo "$report" | grep -qE "statically linked|static-pie linked"
+
+      - name: Package with ConPTY
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          .\scripts\package_windows_conpty.ps1 `
+            -MomoExe "target\$env:TARGET\release\momo.exe" `
+            -PackagePath (Join-Path $env:RUNNER_TEMP "Microsoft.Windows.Console.ConPTY.nupkg") `
+            -StageDir (Join-Path $env:RUNNER_TEMP "momo-windows-x86_64") `
+            -OutputPath $env:ASSET
+
+      - name: Install smoke test
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $label = $env:GITHUB_REF_NAME -replace '^momo-v', ''
+          .\scripts\windows_install_smoke.ps1 -ArchivePath $env:ASSET -ExpectedVersion "momo $label"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -183,6 +211,7 @@ jobs:
             --previous previous-latest.json \
             --out-dir dist
           cp packaging/momo/install.sh dist/install.sh
+          cp packaging/windows/install.ps1 packaging/windows/install.cmd dist/
           (cd dist && sha256sum -c SHA256SUMS)
 
       - name: Publish release
@@ -197,4 +226,6 @@ jobs:
             --latest \
             dist/momo-linux-x86_64 dist/momo-linux-aarch64 \
             dist/momo-macos-x86_64 dist/momo-macos-aarch64 \
-            dist/SHA256SUMS dist/latest.json dist/install.sh
+            dist/momo-windows-x86_64.zip \
+            dist/SHA256SUMS dist/latest.json \
+            dist/install.sh dist/install.ps1 dist/install.cmd

@@ -101,8 +101,10 @@ enough: wait for the Linux job in MoMo CI before releasing.
 
 Windows cross-lint from macOS or Linux needs the Windows SDK: install `xwin` with
 `cargo install xwin --locked`, run `just setup-windows-cross` once, and accept Microsoft's SDK
-license. `just windows-lint` then checks `cfg(windows)` code. MoMo does not ship Windows builds,
-but the Windows code must keep compiling.
+license. `just windows-lint` then checks `cfg(windows)` code. Releases ship a Windows package
+(`momo-windows-x86_64.zip`, `momo.exe` with Microsoft's ConPTY runtime) installed by
+`packaging/windows/install.ps1`; the `windows package` CI job builds it and runs
+`scripts/windows_install_smoke.ps1`, the only Windows runtime check.
 
 Unit tests live next to the code (`#[cfg(test)] mod tests`). New `AppState` or `Workspace` behavior
 should be testable with `AppState::test_new()` and `Workspace::test_new()` without PTYs.
@@ -158,7 +160,8 @@ it in step with the CLI. Put local plans and notes under `.local/prd/` (git-igno
 ## Releases
 
 Releases are cut by pushing an annotated `momo-v<base>-momo.<N>` tag; see
-`packaging/momo/README.md`. Wait for green MoMo CI on the commit (Linux and macOS) first.
+`packaging/momo/README.md`. Wait for green MoMo CI on the commit (Linux, macOS, and the Windows
+package) first.
 
 ## Commit style
 

@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://github.com/iiMoham/momo/releases/latest"><img src="https://img.shields.io/github/v/release/iiMoham/momo?label=release&color=37e2ff&labelColor=121a33" alt="latest release"></a>
   <a href="https://github.com/iiMoham/momo/actions/workflows/momo-ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/iiMoham/momo/momo-ci.yml?branch=main&label=ci&color=7cf29a&labelColor=121a33" alt="CI status"></a>
-  <img src="https://img.shields.io/badge/macOS%20%7C%20Linux-8b9ad6?labelColor=121a33&label=runs%20on" alt="runs on macOS and Linux">
+  <img src="https://img.shields.io/badge/macOS%20%7C%20Linux%20%7C%20Windows-8b9ad6?labelColor=121a33&label=runs%20on" alt="runs on macOS, Linux, and Windows">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-ff4fd8?labelColor=121a33" alt="Apache 2.0 license"></a>
 </p>
 
@@ -16,7 +16,7 @@
 MoMo is a terminal workspace for people who run several coding agents at once. Claude Code, Codex,
 Gemini, OpenCode, and the rest each get a pane, the sidebar shows which of them are working, which
 are done, and which are waiting on you, and everything keeps running when you close the window or
-lose your SSH connection. It runs on macOS and Linux, inside the terminal app you already use.
+lose your SSH connection. It runs on macOS, Linux, and Windows, inside the terminal app you already use.
 
 <p align="center">
   <img src="assets/readme/screenshot-main.svg" alt="MoMo with a sidebar of workspaces and agents, an agent editing code in one pane and tests passing in another" width="100%">
@@ -32,6 +32,13 @@ momo
 The installer picks the build for your machine, checks its SHA-256 checksum, and puts `momo` in
 `~/.local/bin`. The command is the same in any terminal app and any shell, because it hands the
 script to `sh`. `momo update` installs new releases.
+
+On Windows, run this in PowerShell instead:
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/iiMoham/momo/releases/latest/download/install.ps1 | iex"
+momo
+```
 
 <details>
 <summary>Install details for macOS, Linux, Windows, your PATH, and other options</summary>
@@ -56,17 +63,23 @@ has). Install `curl` if it is missing, then run the command above:
 
 Linux binaries are fully static, so they run on any distribution and C library (glibc or musl).
 
-#### Windows (WSL)
+#### Windows
 
-MoMo has no native Windows build. Run it in WSL 2, which gives you a real Linux shell inside Windows
-Terminal:
+MoMo needs 64-bit Windows 10 version 1809 or later, or Windows 11. Run the PowerShell command
+above in any PowerShell window; it does not need Administrator. It installs `momo.exe` with
+Microsoft's ConPTY runtime under `%USERPROFILE%\.momo`, adds it to your user `PATH`, and checks the
+download against its SHA-256 checksum. Open a new terminal afterwards so other windows pick up the
+new `PATH`. Windows on ARM runs the x86_64 build under emulation.
 
-```powershell
-wsl --install          # in PowerShell as Administrator, once; then restart
+If your antivirus or company policy blocks `irm ... | iex`, use Command Prompt. It downloads the same
+installer to a file and runs it:
+
+```cmd
+curl.exe -fsSLo install.cmd https://github.com/iiMoham/momo/releases/latest/download/install.cmd && install.cmd && del install.cmd
 ```
 
-Open Ubuntu from the Start menu (or a WSL tab in Windows Terminal) and run the Linux command
-above. WSL support is not tested by us yet; please report problems.
+To install into a different folder, set `MOMO_INSTALL_DIR` before running the installer. WSL 2 also
+works: open a WSL shell and use the Linux command.
 
 #### Add momo to your PATH
 
@@ -95,6 +108,7 @@ curl -fsSL https://github.com/iiMoham/momo/releases/latest/download/install.sh |
 | Update | `momo update` downloads the latest MoMo release |
 | Version | `momo --version`, for example `momo 0.9.1-momo.2` |
 | Uninstall | `rm ~/.local/bin/momo`, and `rm -r ~/.config/momo ~/.local/state/momo` to remove config and sessions |
+| Uninstall on Windows | Delete `%USERPROFILE%\.momo`, `%LOCALAPPDATA%\Programs\MoMo`, and `%APPDATA%\momo`, then remove the `.momo` entry from your user `PATH` |
 
 </details>
 
