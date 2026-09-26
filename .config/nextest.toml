@@ -1,0 +1,4 @@
+# MoMo CI selects this profile (NEXTEST_PROFILE=ci) to report every failing
+# test in one run. Local runs keep nextest's default profile.
+[profile.ci]
+fail-fast = false

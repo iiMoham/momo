@@ -1,0 +1,36 @@
+id = "momo.workstream"
+name = "Workstream"
+version = "0.1.0"
+min_herdr_version = "0.9.1"
+description = "Start a task in a new worktree with your layout, and finish it safely"
+platforms = ["linux", "macos"]
+
+[[actions]]
+id = "start"
+title = "Start workstream"
+description = "Ask for a branch, create its worktree, and apply the layout recipe"
+contexts = ["workspace"]
+command = ["python3", "workstream.py", "launch", "start"]
+
+[[actions]]
+id = "finish"
+title = "Finish workstream"
+description = "Review and remove this worktree checkout (the branch is kept)"
+contexts = ["workspace"]
+command = ["python3", "workstream.py", "launch", "finish"]
+
+[[panes]]
+id = "start-ui"
+title = "Start workstream"
+placement = "popup"
+width = "70%"
+height = "60%"
+command = ["python3", "workstream.py", "start"]
+
+[[panes]]
+id = "finish-ui"
+title = "Finish workstream"
+placement = "popup"
+width = "70%"
+height = "60%"
+command = ["python3", "workstream.py", "finish"]

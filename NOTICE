@@ -1,0 +1,15 @@
+MoMo
+Copyright 2026 iiMoham
+
+This product includes software from the herdr project
+(https://github.com/herdrdev/herdr), copyright the herdr authors and
+contributors, licensed under the Apache License, Version 2.0. MoMo is an
+independent project and is not affiliated with or endorsed by the herdr
+project.
+
+MoMo modifies that software and adds its own work, also licensed under the
+Apache License, Version 2.0. The changes include the `momo` binary, app
+directory, and release channel; the midnight-neon theme and animated sidebar
+herd; tab input sync; the pane output stream; nested repository checks before
+worktree removal; the workstream plugin; notification clicks that focus the
+agent's pane; tab close confirmation; and tab bar padding.
