@@ -50,7 +50,9 @@ function Assert-Installed {
 function Invoke-WindowsPowerShell {
     param([string[]]$Arguments)
 
-    & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass @Arguments
+    # Out-Host keeps the installer's messages out of this function's return
+    # value, which must be only the exit code.
+    & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass @Arguments | Out-Host
     return $LASTEXITCODE
 }
 
