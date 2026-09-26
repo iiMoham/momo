@@ -1,9 +1,17 @@
+# MoMo installer for Windows. Installs momo.exe with its app-local ConPTY
+# runtime under %USERPROFILE%\.momo and puts it on the user PATH.
+#
+#   powershell -ExecutionPolicy Bypass -c "irm https://github.com/iiMoham/momo/releases/latest/download/install.ps1 | iex"
+#
+# Environment overrides:
+#   MOMO_HOME          package store (default: %USERPROFILE%\.momo)
+#   MOMO_INSTALL_DIR   stable bin directory (default: %LOCALAPPDATA%\Programs\MoMo\bin)
+#   MOMO_MANIFEST_URL  release manifest (default: the latest GitHub release)
 [CmdletBinding()]
 param(
-    [string]$Channel = $env:HERDR_CHANNEL,
-    [string]$ManifestUrl = $env:HERDR_MANIFEST_URL,
-    [string]$InstallDir = $env:HERDR_INSTALL_DIR,
-    [string]$ExpectedBuildId = $env:HERDR_EXPECTED_BUILD_ID,
+    [string]$Channel = "stable",
+    [string]$ManifestUrl = $env:MOMO_MANIFEST_URL,
+    [string]$InstallDir = $env:MOMO_INSTALL_DIR,
     [int]$Retain = 3,
     [string]$LocalPackagePath,
     [string]$LocalPackageFormat,
@@ -15,9 +23,10 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
-$channelWasExplicit = -not [string]::IsNullOrWhiteSpace($Channel)
-if ($channelWasExplicit -and $Channel -notin @("stable", "preview")) {
-    Write-Error "Invalid Herdr channel '$Channel'. Use 'stable' or 'preview'."
+# `momo update` passes the update channel and remote installs pass the build
+# channel (`momo` for release builds); MoMo publishes stable releases only.
+if (-not [string]::IsNullOrWhiteSpace($Channel) -and $Channel -notin @("stable", "momo")) {
+    Write-Error "MoMo publishes stable releases only; the '$Channel' channel is not available."
     exit 1
 }
 
@@ -33,7 +42,7 @@ if ($localPackageValueCount -notin @(0, 4)) {
 }
 $useLocalPackage = $localPackageValueCount -eq 4
 if ($useLocalPackage -and $LocalPackageFormat -notin @("zip", "exe")) {
-    throw "Local Herdr package has unsupported format '$LocalPackageFormat'."
+    throw "Local MoMo package has unsupported format '$LocalPackageFormat'."
 }
 
 function Write-Step {
@@ -46,8 +55,8 @@ function Write-WarningStep {
     Write-Warning $Message
 }
 
-function Get-HerdrCommandSource {
-    $existing = Get-Command herdr -ErrorAction SilentlyContinue
+function Get-MomoCommandSource {
+    $existing = Get-Command momo -ErrorAction SilentlyContinue
     if ($null -eq $existing) {
         return $null
     }
@@ -55,21 +64,7 @@ function Get-HerdrCommandSource {
     return $existing.Source
 }
 
-function Get-HerdrMigrationFallback {
-    param([string]$CurrentDir)
-
-    if (Test-IsJunction -Path $CurrentDir) {
-        $target = [string](Get-Item -LiteralPath $CurrentDir -Force).Target
-        $candidate = Join-Path $target "herdr.exe"
-        if (Test-RegularFile -Path $candidate) {
-            return $candidate
-        }
-    }
-
-    return $null
-}
-
-function Get-HerdrExecutableKind {
+function Get-MomoExecutableKind {
     param(
         [string]$Path,
         [string]$ReleasesDir,
@@ -78,15 +73,15 @@ function Get-HerdrExecutableKind {
     )
 
     if ([string]::IsNullOrWhiteSpace($Path) -or
-        -not [System.IO.Path]::GetFileName($Path).Equals("herdr.exe", [System.StringComparison]::OrdinalIgnoreCase)) {
+        -not [System.IO.Path]::GetFileName($Path).Equals("momo.exe", [System.StringComparison]::OrdinalIgnoreCase)) {
         return $null
     }
 
     try {
         $fullPath = [System.IO.Path]::GetFullPath($Path)
         foreach ($alias in @($CurrentDir, $VisibleBinDir)) {
-            $aliasHerdr = [System.IO.Path]::GetFullPath((Join-Path $alias "herdr.exe"))
-            if ($fullPath.Equals($aliasHerdr, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $aliasMomo = [System.IO.Path]::GetFullPath((Join-Path $alias "momo.exe"))
+            if ($fullPath.Equals($aliasMomo, [System.StringComparison]::OrdinalIgnoreCase)) {
                 return "alias"
             }
         }
@@ -169,8 +164,8 @@ function Update-PathRegistryEntry {
 }
 
 function Publish-EnvironmentChange {
-    if (-not ("HerdrInstaller.EnvironmentNativeMethods" -as [type])) {
-        Add-Type -Namespace HerdrInstaller -Name EnvironmentNativeMethods -MemberDefinition @'
+    if (-not ("MomoInstaller.EnvironmentNativeMethods" -as [type])) {
+        Add-Type -Namespace MomoInstaller -Name EnvironmentNativeMethods -MemberDefinition @'
 [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
 public static extern System.IntPtr SendMessageTimeout(
     System.IntPtr hWnd,
@@ -184,7 +179,7 @@ public static extern System.IntPtr SendMessageTimeout(
     }
 
     $result = [UIntPtr]::Zero
-    [HerdrInstaller.EnvironmentNativeMethods]::SendMessageTimeout(
+    [MomoInstaller.EnvironmentNativeMethods]::SendMessageTimeout(
         [IntPtr]0xffff,
         0x1a,
         [UIntPtr]::Zero,
@@ -261,13 +256,13 @@ function Invoke-CurlDownload {
     $parsedUri = $null
     if (-not [System.Uri]::TryCreate($Uri, [System.UriKind]::Absolute, [ref]$parsedUri) -or
         $parsedUri.Scheme -notin @("http", "https")) {
-        throw "Herdr download URL must use HTTP or HTTPS: $Uri"
+        throw "MoMo download URL must use HTTP or HTTPS: $Uri"
     }
 
     $curl = Get-Command curl.exe -CommandType Application -ErrorAction SilentlyContinue |
         Select-Object -First 1
     if ($null -eq $curl) {
-        throw "Herdr installation requires curl.exe, which is included with supported Windows versions."
+        throw "MoMo installation requires curl.exe, which is included with supported Windows versions."
     }
 
     $arguments = @(
@@ -315,7 +310,7 @@ function ConvertTo-ManifestObject {
 function Get-RemoteManifest {
     param([string]$Uri)
 
-    $manifestPath = Join-Path ([System.IO.Path]::GetTempPath()) ("herdr-manifest-" + [System.Guid]::NewGuid().ToString("N") + ".json")
+    $manifestPath = Join-Path ([System.IO.Path]::GetTempPath()) ("momo-manifest-" + [System.Guid]::NewGuid().ToString("N") + ".json")
     try {
         Invoke-CurlDownload -Uri $Uri -Destination $manifestPath
         return ConvertTo-ManifestObject -Manifest ([System.IO.File]::ReadAllText($manifestPath))
@@ -345,7 +340,7 @@ function Test-FileDigest {
         $sha256.Dispose()
     }
     if ($actual -ne $ExpectedDigest.ToLowerInvariant()) {
-        throw "Downloaded Herdr checksum did not match. Expected $ExpectedDigest but got $actual."
+        throw "Downloaded MoMo checksum did not match. Expected $ExpectedDigest but got $actual."
     }
 }
 
@@ -369,7 +364,7 @@ function Test-RegularDirectory {
     return -not ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)
 }
 
-function Test-HerdrReleaseComplete {
+function Test-MomoReleaseComplete {
     param(
         [string]$ReleaseDir,
         [string]$Format
@@ -378,8 +373,8 @@ function Test-HerdrReleaseComplete {
     if (-not (Test-RegularDirectory -Path $ReleaseDir)) {
         return $false
     }
-    $herdrExe = Join-Path $ReleaseDir "herdr.exe"
-    if (-not (Test-RegularFile -Path $herdrExe)) {
+    $momoExe = Join-Path $ReleaseDir "momo.exe"
+    if (-not (Test-RegularFile -Path $momoExe)) {
         return $false
     }
     if ($Format -eq "exe") {
@@ -514,7 +509,7 @@ function Remove-DirectoryWithRetry {
             return
         } catch {
             if ([DateTime]::UtcNow -ge $deadline) {
-                Write-WarningStep "Herdr installed successfully but could not remove a temporary release backup at $Path."
+                Write-WarningStep "MoMo installed successfully but could not remove a temporary release backup at $Path."
                 return
             }
             Start-Sleep -Milliseconds 100
@@ -566,7 +561,7 @@ function Set-ManagedJunction {
         [string]$LinkPath,
         [string]$TargetPath,
         [string]$ManagedTargetPrefix,
-        [bool]$AllowLegacyHerdrBinMigration = $false
+        [bool]$AllowLegacyMomoBinMigration = $false
     )
 
     if (Test-Path -LiteralPath $LinkPath) {
@@ -585,7 +580,7 @@ function Set-ManagedJunction {
             Remove-Item -LiteralPath $LinkPath -Recurse -Force
         } elseif ($item.PSIsContainer) {
             if ((Get-ChildItem -LiteralPath $LinkPath -Force | Select-Object -First 1) -ne $null) {
-                if (-not (Move-LegacyHerdrBinDirectory -Path $LinkPath -AllowMigration $AllowLegacyHerdrBinMigration)) {
+                if (-not (Move-LegacyMomoBinDirectory -Path $LinkPath -AllowMigration $AllowLegacyMomoBinMigration)) {
                     throw "Refusing to replace non-empty directory at $LinkPath with a junction."
                 }
             } else {
@@ -600,7 +595,7 @@ function Set-ManagedJunction {
     New-Item -ItemType Junction -Path $LinkPath -Target $TargetPath | Out-Null
 }
 
-function Move-LegacyHerdrBinDirectory {
+function Move-LegacyMomoBinDirectory {
     param(
         [string]$Path,
         [bool]$AllowMigration
@@ -615,13 +610,13 @@ function Move-LegacyHerdrBinDirectory {
         return $false
     }
 
-    if (($entries | Where-Object { $_.Name -ieq "herdr.exe" } | Select-Object -First 1) -eq $null) {
+    if (($entries | Where-Object { $_.Name -ieq "momo.exe" } | Select-Object -First 1) -eq $null) {
         return $false
     }
 
     $legacyPath = "$Path.legacy.$([System.Guid]::NewGuid().ToString("N"))"
     Move-Item -LiteralPath $Path -Destination $legacyPath
-    Write-Step "Moved legacy Herdr bin directory to $legacyPath."
+    Write-Step "Moved legacy MoMo bin directory to $legacyPath."
     return $true
 }
 
@@ -666,23 +661,18 @@ function Remove-OldReleases {
     }
 }
 
-function Resolve-HerdrVersion {
-    param(
-        [object]$Manifest,
-        [string]$SelectedChannel
-    )
-
-    if ($SelectedChannel -eq "preview") {
-        if ([string]::IsNullOrWhiteSpace([string]$Manifest.base_version) -or [string]::IsNullOrWhiteSpace([string]$Manifest.build_id)) {
-            throw "Preview manifest is missing base_version or build_id."
-        }
-        return "$($Manifest.base_version)-preview.$($Manifest.build_id)"
-    }
+function Resolve-MomoVersion {
+    param([object]$Manifest)
 
     if ([string]::IsNullOrWhiteSpace([string]$Manifest.version)) {
-        throw "Stable manifest is missing version."
+        throw "Release manifest is missing version."
     }
-    return [string]$Manifest.version
+    # MoMo releases read `<base>-momo.<N>`, matching `momo --version`.
+    $releaseProperty = $Manifest.PSObject.Properties["momo_release"]
+    if ($null -eq $releaseProperty -or [int]$releaseProperty.Value -lt 1) {
+        return [string]$Manifest.version
+    }
+    return "$($Manifest.version)-momo.$([int]$releaseProperty.Value)"
 }
 
 if ($env:OS -ne "Windows_NT") {
@@ -691,7 +681,7 @@ if ($env:OS -ne "Windows_NT") {
 }
 
 if (-not [Environment]::Is64BitOperatingSystem) {
-    Write-Error "Herdr requires 64-bit Windows."
+    Write-Error "MoMo requires 64-bit Windows."
     exit 1
 }
 
@@ -712,18 +702,18 @@ switch ($architecture) {
     }
 }
 
-$herdrHome = if ([string]::IsNullOrWhiteSpace($env:HERDR_HOME)) {
-    Join-Path $env:USERPROFILE ".herdr"
+$momoHome = if ([string]::IsNullOrWhiteSpace($env:MOMO_HOME)) {
+    Join-Path $env:USERPROFILE ".momo"
 } else {
-    $env:HERDR_HOME
+    $env:MOMO_HOME
 }
-$herdrHome = [System.IO.Path]::GetFullPath($herdrHome)
-$standaloneRoot = Join-Path $herdrHome "packages\standalone"
+$momoHome = [System.IO.Path]::GetFullPath($momoHome)
+$standaloneRoot = Join-Path $momoHome "packages\standalone"
 $releasesDir = Join-Path $standaloneRoot "releases"
 $currentDir = Join-Path $standaloneRoot "current"
 $lockPath = Join-Path $standaloneRoot "install.lock"
 
-$defaultVisibleBinDir = Join-Path $env:LOCALAPPDATA "Programs\Herdr\bin"
+$defaultVisibleBinDir = Join-Path $env:LOCALAPPDATA "Programs\MoMo\bin"
 $visibleBinDir = if ([string]::IsNullOrWhiteSpace($InstallDir)) {
     $defaultVisibleBinDir
 } else {
@@ -739,17 +729,15 @@ try {
     $allowLegacyVisibleBinMigration = $false
 }
 
-$commandHerdr = Get-HerdrCommandSource
-$channelHerdr = $commandHerdr
-if ([string]::IsNullOrWhiteSpace($channelHerdr)) { $channelHerdr = Get-HerdrMigrationFallback -CurrentDir $currentDir }
-$existingHerdrKind = Get-HerdrExecutableKind `
-    -Path $channelHerdr `
+$commandMomo = Get-MomoCommandSource
+$existingMomoKind = Get-MomoExecutableKind `
+    -Path $commandMomo `
     -ReleasesDir $releasesDir `
     -CurrentDir $currentDir `
     -VisibleBinDir $visibleBinDir
-if (-not [string]::IsNullOrWhiteSpace($commandHerdr) -and $null -eq $existingHerdrKind) {
-    Write-Step "Detected existing Herdr command at $commandHerdr"
-    Write-WarningStep "PATH order decides which Herdr runs. This installer will put the active versioned release first for future and current PowerShell sessions."
+if (-not [string]::IsNullOrWhiteSpace($commandMomo) -and $null -eq $existingMomoKind) {
+    Write-Step "Detected existing MoMo command at $commandMomo"
+    Write-WarningStep "PATH order decides which MoMo runs. This installer will put the active versioned release first for future and current PowerShell sessions."
 }
 
 if ($useLocalPackage) {
@@ -759,67 +747,21 @@ if ($useLocalPackage) {
         Format = $LocalPackageFormat
     }
 } else {
-    if (-not $channelWasExplicit) {
-        if (-not [string]::IsNullOrWhiteSpace($channelHerdr) -and $null -eq $existingHerdrKind) {
-            throw "Refusing to run unrecognized Herdr command at $channelHerdr to detect its update channel. Rerun with -Channel stable or -Channel preview."
-        }
-        if (-not [string]::IsNullOrWhiteSpace($channelHerdr)) {
-            $detectedChannel = [string](& $channelHerdr channel show 2>$null | Select-Object -Last 1)
-            $detectedChannel = $detectedChannel.Trim()
-            if ($LASTEXITCODE -ne 0 -or $detectedChannel -notin @("stable", "preview")) {
-                throw "Could not determine the existing Herdr update channel. Rerun with -Channel stable or -Channel preview."
-            }
-            $Channel = $detectedChannel
-            Write-Step "Preserving existing Herdr $Channel channel"
-        } elseif (-not [string]::IsNullOrWhiteSpace($ManifestUrl) -and $ManifestUrl -match "/preview\.json$") {
-            $Channel = "preview"
-        } else {
-            $Channel = "stable"
-        }
-    }
-
     if ([string]::IsNullOrWhiteSpace($ManifestUrl)) {
-        $ManifestUrl = if ($Channel -eq "preview") {
-            "https://herdr.dev/preview.json"
-        } else {
-            "https://herdr.dev/latest.json"
-        }
+        $ManifestUrl = "https://github.com/iiMoham/momo/releases/latest/download/latest.json"
     }
 
-    Write-Step "Fetching Herdr $Channel manifest"
+    Write-Step "Fetching MoMo release manifest"
     $manifest = Get-RemoteManifest -Uri $ManifestUrl
-    $manifestChannelProperty = $manifest.PSObject.Properties["channel"]
-    if (-not $channelWasExplicit -and $null -ne $manifestChannelProperty -and [string]$manifestChannelProperty.Value -eq "preview") {
-        $Channel = "preview"
-    }
-    $assetsProperty = $manifest.PSObject.Properties["assets"]
-    $assetProperty = if ($null -eq $assetsProperty) {
-        $null
-    } else {
-        $assetsProperty.Value.PSObject.Properties[$target]
-    }
-    if ($null -eq $assetProperty -and
-        -not $channelWasExplicit -and
-        $Channel -eq "stable" -and
-        $ManifestUrl -match "/latest\.json$") {
-        Write-WarningStep "The stable manifest does not include Windows yet; using preview during the stable-channel rollout."
-        $Channel = "preview"
-        $ManifestUrl = $ManifestUrl.Substring(0, $ManifestUrl.Length - "latest.json".Length) + "preview.json"
-        Write-Step "Fetching Herdr preview manifest"
-        $manifest = Get-RemoteManifest -Uri $ManifestUrl
-    }
     $asset = Get-ManifestAsset -Manifest $manifest -Target $target
-    if (-not [string]::IsNullOrWhiteSpace($ExpectedBuildId) -and [string]$manifest.build_id -ne $ExpectedBuildId) {
-        throw "Preview manifest changed while updating. Expected build $ExpectedBuildId but found $($manifest.build_id). Run herdr update again."
-    }
-    $versionIdentity = Resolve-HerdrVersion -Manifest $manifest -SelectedChannel $Channel
+    $versionIdentity = Resolve-MomoVersion -Manifest $manifest
 }
 $safeVersionIdentity = $versionIdentity -replace '[^0-9A-Za-z._-]', '-'
 $releaseName = "$safeVersionIdentity-$targetTriple"
 $releaseDir = Join-Path $releasesDir $releaseName
 
-Write-Step "Installing Herdr $versionIdentity for $targetTriple"
-$tempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("herdr-install-" + [System.Guid]::NewGuid().ToString("N"))
+Write-Step "Installing MoMo $versionIdentity for $targetTriple"
+$tempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("momo-install-" + [System.Guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
 
 $userPathChanged = $false
@@ -827,15 +769,15 @@ try {
     $userPathChanged = Invoke-WithInstallLock -LockPath $lockPath -Script {
         Remove-StaleInstallArtifacts -ReleasesDir $releasesDir
 
-        if (-not (Test-HerdrReleaseComplete -ReleaseDir $releaseDir -Format $asset.Format)) {
+        if (-not (Test-MomoReleaseComplete -ReleaseDir $releaseDir -Format $asset.Format)) {
             $downloadPath = if ($useLocalPackage) {
                 $LocalPackagePath
             } else {
-                Join-Path $tempDir "herdr-download.$($asset.Format)"
+                Join-Path $tempDir "momo-download.$($asset.Format)"
             }
             $stagingDir = Join-Path $releasesDir ".staging.$releaseName.$PID"
             if (-not $useLocalPackage) {
-                Write-Step "Downloading Herdr"
+                Write-Step "Downloading MoMo"
                 Invoke-CurlDownload -Uri $asset.Url -Destination $downloadPath
             }
             Test-FileDigest -Path $downloadPath -ExpectedDigest $asset.Sha256
@@ -844,15 +786,15 @@ try {
                 Expand-Archive -LiteralPath $downloadPath -DestinationPath $stagingDir
             } else {
                 New-Item -ItemType Directory -Force -Path $stagingDir | Out-Null
-                Copy-Item -LiteralPath $downloadPath -Destination (Join-Path $stagingDir "herdr.exe")
+                Copy-Item -LiteralPath $downloadPath -Destination (Join-Path $stagingDir "momo.exe")
             }
-            if (-not (Test-HerdrReleaseComplete -ReleaseDir $stagingDir -Format $asset.Format)) {
-                throw "Downloaded Herdr package is incomplete or failed ConPTY verification."
+            if (-not (Test-MomoReleaseComplete -ReleaseDir $stagingDir -Format $asset.Format)) {
+                throw "Downloaded MoMo package is incomplete or failed ConPTY verification."
             }
-            $stagedHerdr = Join-Path $stagingDir "herdr.exe"
-            & $stagedHerdr --version *> $null
+            $stagedMomo = Join-Path $stagingDir "momo.exe"
+            & $stagedMomo --version *> $null
             if ($LASTEXITCODE -ne 0) {
-                throw "Downloaded Herdr command failed verification: $stagedHerdr --version"
+                throw "Downloaded MoMo command failed verification: $stagedMomo --version"
             }
             $backupDir = $null
             if (Test-Path -LiteralPath $releaseDir) {
@@ -865,21 +807,21 @@ try {
                 if ($null -ne $backupDir -and -not (Test-Path -LiteralPath $releaseDir)) {
                     [System.IO.Directory]::Move($backupDir, $releaseDir)
                 }
-                Write-WarningStep "Windows could not activate the downloaded release. Another process may have a package file open, such as antivirus or indexing. No incomplete release was activated. Run herdr update again."
+                Write-WarningStep "Windows could not activate the downloaded release. Another process may have a package file open, such as antivirus or indexing. No incomplete release was activated. Run momo update again."
                 throw
             }
         }
 
-        $releaseHerdr = Join-Path $releaseDir "herdr.exe"
-        & $releaseHerdr --version *> $null
+        $releaseMomo = Join-Path $releaseDir "momo.exe"
+        & $releaseMomo --version *> $null
         if ($LASTEXITCODE -ne 0) {
-            throw "Installed Herdr command failed verification: $releaseHerdr --version"
+            throw "Installed MoMo command failed verification: $releaseMomo --version"
         }
         Get-ChildItem -LiteralPath $releasesDir -Force -Directory -Filter ".backup.$releaseName.*" -ErrorAction SilentlyContinue |
             ForEach-Object { Remove-DirectoryWithRetry -Path $_.FullName }
 
         Set-ManagedJunction -LinkPath $currentDir -TargetPath $releaseDir -ManagedTargetPrefix $releasesDir
-        Set-ManagedJunction -LinkPath $visibleBinDir -TargetPath $releaseDir -ManagedTargetPrefix $standaloneRoot -AllowLegacyHerdrBinMigration $allowLegacyVisibleBinMigration
+        Set-ManagedJunction -LinkPath $visibleBinDir -TargetPath $releaseDir -ManagedTargetPrefix $standaloneRoot -AllowLegacyMomoBinMigration $allowLegacyVisibleBinMigration
 
         $ownedPathEntries = @($visibleBinDir, $currentDir)
         $userEnvironmentKey = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey("Environment")
@@ -915,21 +857,21 @@ if ($userPathChanged) {
     Write-Step "$releaseDir is already first on PATH."
 }
 
-$resolvedHerdr = Get-HerdrCommandSource
-$resolvedHerdrKind = Get-HerdrExecutableKind `
-    -Path $resolvedHerdr `
+$resolvedMomo = Get-MomoCommandSource
+$resolvedMomoKind = Get-MomoExecutableKind `
+    -Path $resolvedMomo `
     -ReleasesDir $releasesDir `
     -CurrentDir $currentDir `
     -VisibleBinDir $visibleBinDir
-$releaseHerdr = Join-Path $releaseDir "herdr.exe"
-if ($resolvedHerdrKind -ne "release" -or
-    -not [System.IO.Path]::GetFullPath($resolvedHerdr).Equals(
-        [System.IO.Path]::GetFullPath($releaseHerdr),
+$releaseMomo = Join-Path $releaseDir "momo.exe"
+if ($resolvedMomoKind -ne "release" -or
+    -not [System.IO.Path]::GetFullPath($resolvedMomo).Equals(
+        [System.IO.Path]::GetFullPath($releaseMomo),
         [System.StringComparison]::OrdinalIgnoreCase
     )) {
-    Write-WarningStep "PowerShell still resolves herdr to $resolvedHerdr. Open a new PowerShell window or inspect PATH order manually."
+    Write-WarningStep "PowerShell still resolves momo to $resolvedMomo. Open a new PowerShell window or inspect PATH order manually."
 }
 
-Write-Step "Current PowerShell session: herdr"
-Write-Step "Future PowerShell windows: open a new PowerShell window and run: herdr"
-Write-Host "Herdr $versionIdentity installed successfully."
+Write-Step "Current PowerShell session: momo"
+Write-Step "Future PowerShell windows: open a new PowerShell window and run: momo"
+Write-Host "MoMo $versionIdentity installed successfully."

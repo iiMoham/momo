@@ -7,7 +7,14 @@
 - `release_manifest.py` – writes `latest.json` (read by `momo update` and remote SSH installs) and
   `SHA256SUMS` from the built binaries. `latest.json` keeps up to 20 earlier releases so remote hosts
   can always get the exact build a client runs.
-- `tests/` – run with `just fork-plugins-test`.
+- `../windows/install.ps1` – the Windows installer, published with every release
+  (`irm https://github.com/iiMoham/momo/releases/latest/download/install.ps1 | iex`), with
+  `../windows/install.cmd` as a Command Prompt fallback. It downloads `momo-windows-x86_64.zip`
+  (`momo.exe` plus Microsoft's ConPTY runtime, built by `scripts/package_windows_conpty.ps1`),
+  verifies it, and installs it under `%USERPROFILE%\.momo` (`MOMO_HOME`, `MOMO_INSTALL_DIR`
+  override). `momo update` and remote SSH installs on Windows run the same script.
+- `tests/` – run with `just fork-plugins-test`. `scripts/windows_install_smoke.ps1` tests the
+  Windows installers end to end and runs in CI and in the release build.
 
 ## Cutting a release
 
@@ -25,6 +32,7 @@ git tag -a momo-v0.9.1-momo.2 --cleanup=verbatim -F notes.md
 git push origin momo-v0.9.1-momo.2
 ```
 
-The workflow builds macOS (arm64, x86_64) and Linux (x86_64, arm64, static musl) binaries, checks
-the version identity, and publishes the GitHub Release with the binaries, `SHA256SUMS`,
-`latest.json`, and `install.sh`.
+The workflow builds macOS (arm64, x86_64) and Linux (x86_64, arm64, static musl) binaries and the
+Windows x86_64 package, checks the version identity, runs the Windows install smoke test, and
+publishes the GitHub Release with the binaries, `SHA256SUMS`, `latest.json`, `install.sh`,
+`install.ps1`, and `install.cmd`.

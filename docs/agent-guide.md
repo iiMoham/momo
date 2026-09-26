@@ -35,14 +35,14 @@ momo
 Windows PowerShell:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -c "irm https://github.com/iiMoham/momo/install.ps1 | iex"
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/iiMoham/momo/releases/latest/download/install.ps1 | iex"
 momo
 ```
 
 If endpoint security blocks that fileless PowerShell command, use Command Prompt:
 
 ```cmd
-curl.exe -fsSLo install.cmd https://github.com/iiMoham/momo/install.cmd && install.cmd && del install.cmd
+curl.exe -fsSLo install.cmd https://github.com/iiMoham/momo/releases/latest/download/install.cmd && install.cmd && del install.cmd
 momo
 ```
 

@@ -18,7 +18,7 @@ class ReleaseManifestTest(unittest.TestCase):
         self.dir = Path(self.tmp.name)
         self.version = release_manifest.cargo_version(ROOT)
         for target in release_manifest.TARGETS:
-            (self.dir / f"momo-{target}").write_bytes(f"binary {target}".encode())
+            (self.dir / release_manifest.asset_name(target)).write_bytes(f"binary {target}".encode())
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -51,7 +51,10 @@ class ReleaseManifestTest(unittest.TestCase):
         )
         self.assertEqual(manifest["releases"][label]["assets"], manifest["assets"])
         self.assertIn(f"{asset['sha256']}  momo-macos-aarch64\n", sums)
-        self.assertEqual(len(sums.splitlines()), 4)
+        self.assertEqual(len(sums.splitlines()), 5)
+        windows = manifest["assets"]["windows-x86_64"]
+        self.assertTrue(windows["url"].endswith(f"/momo-v{label}/momo-windows-x86_64.zip"))
+        self.assertIn(f"{windows['sha256']}  momo-windows-x86_64.zip\n", sums)
         json.dumps(manifest)
 
     def test_previous_releases_are_kept_for_older_clients_newest_first(self):

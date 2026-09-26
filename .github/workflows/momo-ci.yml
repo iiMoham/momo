@@ -72,3 +72,52 @@ jobs:
           # .config/nextest.toml: report every failing test, not just the first.
           NEXTEST_PROFILE: ci
         run: just ci "$NEXTEST_FILTER" && just fork-plugins-test
+
+  windows-package:
+    # Builds the Windows package the release publishes and installs it with
+    # packaging/windows/install.ps1 and install.cmd, so a broken Windows build
+    # or installer shows up before a release is tagged.
+    name: windows package
+    if: github.repository_owner == 'iiMoham'
+    runs-on: windows-2022
+    timeout-minutes: 60
+    env:
+      TARGET: x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # v1
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN_VERSION }}
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install Zig
+        uses: vercel-labs/setup-zig@83c1594f26b86da8a9a8ddd9b5ee5f3af0f96943 # v1.0.2
+        with:
+          version: 0.16.0
+
+      - name: Restore cargo cache
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          cache-bin: false
+          key: momo-windows-package
+
+      - name: Build
+        run: cargo build --locked --target $env:TARGET
+
+      - name: Package with ConPTY
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          .\scripts\package_windows_conpty.ps1 `
+            -MomoExe "target\$env:TARGET\debug\momo.exe" `
+            -PackagePath (Join-Path $env:RUNNER_TEMP "Microsoft.Windows.Console.ConPTY.nupkg") `
+            -StageDir (Join-Path $env:RUNNER_TEMP "momo-windows-x86_64") `
+            -OutputPath momo-windows-x86_64.zip
+
+      - name: Install smoke test
+        shell: pwsh
+        run: .\scripts\windows_install_smoke.ps1 -ArchivePath momo-windows-x86_64.zip

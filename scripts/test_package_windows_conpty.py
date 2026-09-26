@@ -128,22 +128,22 @@ class WindowsConptyPackageTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            herdr = root / "input-herdr.exe"
-            herdr.write_bytes(self._pe_with_imports(0x8664, ["KERNEL32.dll"]))
+            momo = root / "input-momo.exe"
+            momo.write_bytes(self._pe_with_imports(0x8664, ["KERNEL32.dll"]))
             stage = root / "stage"
-            package.stage_bundle(metadata_path, "x86_64", nupkg, herdr, stage)
+            package.stage_bundle(metadata_path, "x86_64", nupkg, momo, stage)
             package.validate_stage(metadata_path, "x86_64", stage)
 
-            (stage / "herdr.exe").write_bytes(
+            (stage / "momo.exe").write_bytes(
                 self._pe_with_imports(0x8664, ["MSVCP140D.dll"])
             )
             with self.assertRaisesRegex(ValueError, "dynamic Microsoft"):
                 package.validate_stage(metadata_path, "x86_64", stage)
-            (stage / "herdr.exe").write_bytes(
+            (stage / "momo.exe").write_bytes(
                 self._pe_with_imports(0x8664, ["KERNEL32.dll"])
             )
 
-            output = root / "herdr.zip"
+            output = root / "momo.zip"
             package.archive_bundle(metadata_path, "x86_64", stage, output)
             with zipfile.ZipFile(output) as archive:
                 self.assertEqual(
@@ -185,7 +185,7 @@ class WindowsConptyPackageTests(unittest.TestCase):
             {"KERNEL32.dll", "MSVCP140.dll"},
         )
         with self.assertRaisesRegex(ValueError, "dynamic Microsoft"):
-            package.validate_static_msvc_runtime(data, "herdr.exe")
+            package.validate_static_msvc_runtime(data, "momo.exe")
 
     def test_pe_imported_dlls_respects_declared_directory_size(self) -> None:
         # The second descriptor is outside the declared import-directory size,
@@ -197,11 +197,11 @@ class WindowsConptyPackageTests(unittest.TestCase):
             import_directory_size=20,
         )
         self.assertEqual(package.pe_imported_dlls(outside), ["KERNEL32.dll"])
-        package.validate_static_msvc_runtime(outside, "herdr.exe")
+        package.validate_static_msvc_runtime(outside, "momo.exe")
 
         inside = self._pe_with_imports(0x8664, ["KERNEL32.dll", "VCRUNTIME140.dll"])
         with self.assertRaisesRegex(ValueError, "dynamic Microsoft"):
-            package.validate_static_msvc_runtime(inside, "herdr.exe")
+            package.validate_static_msvc_runtime(inside, "momo.exe")
 
     def test_dynamic_msvc_runtime_imports_are_rejected(self) -> None:
         for dll in (
@@ -220,7 +220,7 @@ class WindowsConptyPackageTests(unittest.TestCase):
             with self.subTest(dll=dll):
                 with self.assertRaisesRegex(ValueError, "dynamic Microsoft"):
                     package.validate_static_msvc_runtime(
-                        self._pe_with_imports(0x8664, [dll]), "herdr.exe"
+                        self._pe_with_imports(0x8664, [dll]), "momo.exe"
                     )
 
     def test_static_crt_imports_are_accepted(self) -> None:
@@ -234,7 +234,7 @@ class WindowsConptyPackageTests(unittest.TestCase):
             ],
             ["USER32.dll"],
         )
-        package.validate_static_msvc_runtime(data, "herdr.exe")
+        package.validate_static_msvc_runtime(data, "momo.exe")
         self.assertFalse(package.is_dynamic_msvc_runtime("msvcrt.dll"))
 
     def test_stage_rejects_dynamic_crt_executable(self) -> None:
@@ -247,14 +247,14 @@ class WindowsConptyPackageTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            herdr = root / "herdr.exe"
-            herdr.write_bytes(self._pe_with_imports(0x8664, ["VCRUNTIME140.dll"]))
+            momo = root / "momo.exe"
+            momo.write_bytes(self._pe_with_imports(0x8664, ["VCRUNTIME140.dll"]))
             with self.assertRaisesRegex(ValueError, "dynamic Microsoft"):
                 package.stage_bundle(
                     metadata_path,
                     "x86_64",
                     root / "missing.nupkg",
-                    herdr,
+                    momo,
                     root / "stage",
                 )
 

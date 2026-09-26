@@ -382,7 +382,7 @@ impl RemoteHerdr {
         let (install_suffix, executable) = if platform.is_windows() {
             (
                 String::new(),
-                RemoteExecutable::WindowsPath("herdr.exe".to_string()),
+                RemoteExecutable::WindowsPath(format!("{}.exe", crate::brand::CLI_NAME)),
             )
         } else {
             let install_suffix = format!(".local/bin/{}", crate::brand::CLI_NAME);
@@ -897,7 +897,7 @@ impl RemoteSsh {
                 )?;
                 self.copy_windows_file(
                     source_path,
-                    &format!(r"{remote_dir}\herdr-windows-x86_64.zip"),
+                    &format!(r"{remote_dir}\momo-windows-x86_64.zip"),
                 )?;
 
                 let output = self.framed_user_shell_output(&windows_remote_install_command(
@@ -1075,9 +1075,9 @@ fn windows_scp_target(target: &str, remote_path: &str) -> String {
 fn windows_remote_install_command(remote_dir: &str, identity: &str, sha256: &str) -> String {
     let installer = crate::platform::quote_powershell_arg(&format!(r"{remote_dir}\install.ps1"));
     let package =
-        crate::platform::quote_powershell_arg(&format!(r"{remote_dir}\herdr-windows-x86_64.zip"));
+        crate::platform::quote_powershell_arg(&format!(r"{remote_dir}\momo-windows-x86_64.zip"));
     windows_powershell_script_command(&format!(
-        r#"$herdrInstaller = {installer}; $herdrPackage = {package}; & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $herdrInstaller -Channel {channel} -LocalPackagePath $herdrPackage -LocalPackageFormat zip -LocalPackageIdentity {identity} -LocalPackageSha256 {sha256}; if ($LASTEXITCODE -ne 0) {{ exit $LASTEXITCODE }}; $herdrHome = if ([string]::IsNullOrWhiteSpace($env:HERDR_HOME)) {{ Join-Path $env:USERPROFILE '.herdr' }} else {{ $env:HERDR_HOME }}; $activeJunction = Join-Path $herdrHome 'packages\standalone\current'; $activeTarget = [string](Get-Item -LiteralPath $activeJunction -Force -ErrorAction Stop).Target; if ([string]::IsNullOrWhiteSpace($activeTarget)) {{ throw 'MoMo installer did not activate a concrete release.' }}; $installedHerdr = Join-Path $activeTarget 'herdr.exe'; if (-not (Test-Path -LiteralPath $installedHerdr -PathType Leaf)) {{ throw 'MoMo installer result does not contain herdr.exe.' }}; $encodedResult = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes([System.IO.Path]::GetFullPath($installedHerdr))); [Console]::Out.WriteLine('{WINDOWS_REMOTE_INSTALL_RESULT_MARKER}' + $encodedResult); exit 0"#,
+        r#"$herdrInstaller = {installer}; $herdrPackage = {package}; & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $herdrInstaller -Channel {channel} -LocalPackagePath $herdrPackage -LocalPackageFormat zip -LocalPackageIdentity {identity} -LocalPackageSha256 {sha256}; if ($LASTEXITCODE -ne 0) {{ exit $LASTEXITCODE }}; $momoHome = if ([string]::IsNullOrWhiteSpace($env:MOMO_HOME)) {{ Join-Path $env:USERPROFILE '.momo' }} else {{ $env:MOMO_HOME }}; $activeJunction = Join-Path $momoHome 'packages\standalone\current'; $activeTarget = [string](Get-Item -LiteralPath $activeJunction -Force -ErrorAction Stop).Target; if ([string]::IsNullOrWhiteSpace($activeTarget)) {{ throw 'MoMo installer did not activate a concrete release.' }}; $installedMomo = Join-Path $activeTarget 'momo.exe'; if (-not (Test-Path -LiteralPath $installedMomo -PathType Leaf)) {{ throw 'MoMo installer result does not contain momo.exe.' }}; $encodedResult = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes([System.IO.Path]::GetFullPath($installedMomo))); [Console]::Out.WriteLine('{WINDOWS_REMOTE_INSTALL_RESULT_MARKER}' + $encodedResult); exit 0"#,
         channel = crate::platform::quote_powershell_arg(current_channel()),
         identity = crate::platform::quote_powershell_arg(identity),
         sha256 = crate::platform::quote_powershell_arg(sha256),
@@ -1529,7 +1529,7 @@ fn remote_binary_candidates(
 
 fn windows_remote_binary_candidate_command() -> String {
     windows_powershell_script_command(&format!(
-        r#"function Emit-HerdrPath([string]$CandidatePath) {{ if ([string]::IsNullOrWhiteSpace($CandidatePath) -or -not (Test-Path -LiteralPath $CandidatePath -PathType Leaf)) {{ return }}; $candidateFullPath = [System.IO.Path]::GetFullPath($CandidatePath); $encodedCandidate = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($candidateFullPath)); [Console]::Out.WriteLine('{WINDOWS_REMOTE_PATH_MARKER}' + $encodedCandidate) }}; $pathCommand = Get-Command herdr.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1; if ($null -ne $pathCommand) {{ Emit-HerdrPath $pathCommand.Source }}; $herdrHome = if ([string]::IsNullOrWhiteSpace($env:HERDR_HOME)) {{ Join-Path $env:USERPROFILE '.herdr' }} else {{ $env:HERDR_HOME }}; $activeJunction = Get-Item -LiteralPath (Join-Path $herdrHome 'packages\standalone\current') -Force -ErrorAction SilentlyContinue; if ($null -ne $activeJunction -and -not [string]::IsNullOrWhiteSpace([string]$activeJunction.Target)) {{ Emit-HerdrPath (Join-Path ([string]$activeJunction.Target) 'herdr.exe') }}; exit 0"#
+        r#"function Emit-HerdrPath([string]$CandidatePath) {{ if ([string]::IsNullOrWhiteSpace($CandidatePath) -or -not (Test-Path -LiteralPath $CandidatePath -PathType Leaf)) {{ return }}; $candidateFullPath = [System.IO.Path]::GetFullPath($CandidatePath); $encodedCandidate = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($candidateFullPath)); [Console]::Out.WriteLine('{WINDOWS_REMOTE_PATH_MARKER}' + $encodedCandidate) }}; $pathCommand = Get-Command momo.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1; if ($null -ne $pathCommand) {{ Emit-HerdrPath $pathCommand.Source }}; $momoHome = if ([string]::IsNullOrWhiteSpace($env:MOMO_HOME)) {{ Join-Path $env:USERPROFILE '.momo' }} else {{ $env:MOMO_HOME }}; $activeJunction = Get-Item -LiteralPath (Join-Path $momoHome 'packages\standalone\current') -Force -ErrorAction SilentlyContinue; if ($null -ne $activeJunction -and -not [string]::IsNullOrWhiteSpace([string]$activeJunction.Target)) {{ Emit-HerdrPath (Join-Path ([string]$activeJunction.Target) 'momo.exe') }}; exit 0"#
     ))
 }
 
@@ -4437,7 +4437,7 @@ mod tests {
             arch: "x86_64",
         });
         assert!(remote.machine_metadata().is_none());
-        let path = r"C:\Users\A B\herdr.exe";
+        let path = r"C:\Users\A B\momo.exe";
         assert_eq!(
             remote
                 .with_windows_path(path.into())
@@ -4450,7 +4450,7 @@ mod tests {
 
     #[test]
     fn cached_windows_api_command_checks_before_starting_the_stream() {
-        let path = r"C:\Users\A'B\herdr.exe";
+        let path = r"C:\Users\A'B\momo.exe";
         let command = cached_remote_api_command(
             &crate::client::endpoint::SshMachineMetadata {
                 os: "windows".into(),
@@ -4480,7 +4480,7 @@ mod tests {
 
     #[test]
     fn windows_remote_commands_use_one_encoded_powershell_grammar() {
-        let executable = RemoteExecutable::WindowsPath("herdr.exe".to_string());
+        let executable = RemoteExecutable::WindowsPath("momo.exe".to_string());
         let commands = [
             (
                 "platform probe",
@@ -4490,42 +4490,42 @@ mod tests {
             (
                 "PATH lookup",
                 executable.exists_command(),
-                "if ($null -ne (Get-Command herdr.exe -CommandType Application -ErrorAction SilentlyContinue)) { exit 0 }; exit 1",
+                "if ($null -ne (Get-Command momo.exe -CommandType Application -ErrorAction SilentlyContinue)) { exit 0 }; exit 1",
             ),
             (
                 "client status",
                 executable.status_client_command(),
-                "& herdr.exe status client '--json'; exit $LASTEXITCODE",
+                "& momo.exe status client '--json'; exit $LASTEXITCODE",
             ),
             (
                 "named server status",
                 executable.session_command("agents", &["status", "server", "--json"]),
-                "& herdr.exe '--session' agents status server '--json'; exit $LASTEXITCODE",
+                "& momo.exe '--session' agents status server '--json'; exit $LASTEXITCODE",
             ),
             (
                 "server stop",
                 executable.session_command("agents", &["server", "stop"]),
-                "& herdr.exe '--session' agents server stop; exit $LASTEXITCODE",
+                "& momo.exe '--session' agents server stop; exit $LASTEXITCODE",
             ),
             (
                 "direct bridge",
                 executable.bridge_command("agents"),
-                "$process = Start-Process -FilePath herdr.exe -ArgumentList '--session agents remote-client-bridge' -NoNewWindow -PassThru -ErrorAction Stop; $null = $process.Handle; $process.WaitForExit(); exit $process.ExitCode",
+                "$process = Start-Process -FilePath momo.exe -ArgumentList '--session agents remote-client-bridge' -NoNewWindow -PassThru -ErrorAction Stop; $null = $process.Handle; $process.WaitForExit(); exit $process.ExitCode",
             ),
             (
                 "API bridge with explicit default session",
                 remote_api_bridge_command(&RemoteHerdr::for_platform(RemotePlatform { os: "windows", arch: "x86_64" }), "default", false),
-                "$process = Start-Process -FilePath herdr.exe -ArgumentList '--session default remote-api-bridge' -NoNewWindow -PassThru -ErrorAction Stop; $null = $process.Handle; $process.WaitForExit(); exit $process.ExitCode",
+                "$process = Start-Process -FilePath momo.exe -ArgumentList '--session default remote-api-bridge' -NoNewWindow -PassThru -ErrorAction Stop; $null = $process.Handle; $process.WaitForExit(); exit $process.ExitCode",
             ),
             (
                 "API bridge capability probe",
                 remote_api_bridge_command(&RemoteHerdr::for_platform(RemotePlatform { os: "windows", arch: "x86_64" }), "agents", true),
-                "$process = Start-Process -FilePath herdr.exe -ArgumentList '--session agents remote-api-bridge --check' -NoNewWindow -PassThru -ErrorAction Stop; $null = $process.Handle; $process.WaitForExit(); exit $process.ExitCode",
+                "$process = Start-Process -FilePath momo.exe -ArgumentList '--session agents remote-api-bridge --check' -NoNewWindow -PassThru -ErrorAction Stop; $null = $process.Handle; $process.WaitForExit(); exit $process.ExitCode",
             ),
             (
                 "saved bridge with closed stdin",
                 executable.saved_bridge_command("agents"),
-                "$process = Start-Process -FilePath herdr.exe -ArgumentList '--session agents remote-client-bridge' -NoNewWindow -PassThru -ErrorAction Stop; $null = $process.Handle; $process.WaitForExit(); exit $process.ExitCode",
+                "$process = Start-Process -FilePath momo.exe -ArgumentList '--session agents remote-client-bridge' -NoNewWindow -PassThru -ErrorAction Stop; $null = $process.Handle; $process.WaitForExit(); exit $process.ExitCode",
             ),
         ];
 
@@ -4555,9 +4555,9 @@ mod tests {
         assert_eq!(
             windows_scp_target(
                 "user@example",
-                &format!(r"{remote_dir}\herdr-windows-x86_64.zip")
+                &format!(r"{remote_dir}\momo-windows-x86_64.zip")
             ),
-            "user@example:C:/Temp/MoMo O'Brien/测试/herdr-windows-x86_64.zip"
+            "user@example:C:/Temp/MoMo O'Brien/测试/momo-windows-x86_64.zip"
         );
         assert_eq!(
             windows_scp_target("ssh://user@example:2222", r"C:\Temp\install.ps1"),
@@ -4572,9 +4572,11 @@ mod tests {
         assert!(command.contains("-LocalPackageFormat zip"));
         assert!(command.contains("-LocalPackageIdentity 0.9.0-custom.digest"));
         assert!(command.contains(".Target"));
+        assert!(command.contains("Join-Path $env:USERPROFILE '.momo'"));
+        assert!(command.contains("Join-Path $activeTarget 'momo.exe'"));
         assert!(command.contains(WINDOWS_REMOTE_INSTALL_RESULT_MARKER));
 
-        let installed = r"C:\Users\test\测试\.herdr\packages\standalone\releases\0.9.0\herdr.exe";
+        let installed = r"C:\Users\test\测试\.momo\packages\standalone\releases\0.9.0\momo.exe";
         let encoded = base64::engine::general_purpose::STANDARD.encode(installed);
         assert_eq!(
             parse_windows_remote_path(
@@ -4597,8 +4599,8 @@ mod tests {
             os: "windows",
             arch: "x86_64",
         });
-        let path = r"C:\stale\herdr.exe";
-        let active = r"C:\Users\test\.herdr\packages\standalone\releases\current\herdr.exe";
+        let path = r"C:\stale\momo.exe";
+        let active = r"C:\Users\test\.momo\packages\standalone\releases\current\momo.exe";
         let stdout = format!(
             "{WINDOWS_REMOTE_PATH_MARKER}{}\nnoise\n{WINDOWS_REMOTE_PATH_MARKER}{}\n{WINDOWS_REMOTE_PATH_MARKER}{}\n",
             base64::engine::general_purpose::STANDARD.encode(path),
@@ -4617,7 +4619,8 @@ mod tests {
         );
 
         let command = decode_windows_command(&windows_remote_binary_candidate_command());
-        assert!(command.contains("Get-Command herdr.exe"));
+        assert!(command.contains("Get-Command momo.exe"));
+        assert!(command.contains("Join-Path $env:USERPROFILE '.momo'"));
         assert!(command.contains("$activeJunction.Target"));
     }
 
@@ -4703,7 +4706,7 @@ mod tests {
         let executable = std::env::current_exe().expect("current test executable");
         assert_eq!(
             reattach_command(
-                r"C:\Program Files\MoMo\herdr.exe",
+                r"C:\Program Files\MoMo\momo.exe",
                 "host'name",
                 "work'name",
                 RemoteKeybindings::Local,
@@ -4977,6 +4980,7 @@ mod tests {
         ] {
             std::fs::write(dir.join(format!("momo-{target}")), target).unwrap();
         }
+        std::fs::write(dir.join("momo-windows-x86_64.zip"), "windows-x86_64").unwrap();
         let status = std::process::Command::new("python3")
             .arg(root.join("packaging/momo/release_manifest.py"))
             .args([
@@ -5009,6 +5013,9 @@ mod tests {
         let asset = &release.assets["linux-aarch64"];
         assert!(asset.url().ends_with("/momo-linux-aarch64"));
         assert_eq!(asset.sha256().map(str::len), Some(64));
+        let windows = &release.assets["windows-x86_64"];
+        assert!(windows.url().ends_with("/momo-windows-x86_64.zip"));
+        assert_eq!(windows.sha256().map(str::len), Some(64));
     }
 
     #[test]

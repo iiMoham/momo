@@ -249,7 +249,7 @@ def stage_bundle(
     metadata_path: Path,
     architecture: str,
     package_path: Path,
-    herdr_exe: Path,
+    momo_exe: Path,
     output_dir: Path,
 ) -> None:
     metadata = load_metadata(metadata_path)
@@ -257,22 +257,22 @@ def stage_bundle(
         raise ValueError(f"unsupported Windows architecture: {architecture}")
     if output_dir.exists():
         raise ValueError(f"output directory already exists: {output_dir}")
-    if not herdr_exe.is_file():
-        raise ValueError(f"Herdr executable does not exist: {herdr_exe}")
+    if not momo_exe.is_file():
+        raise ValueError(f"MoMo executable does not exist: {momo_exe}")
 
-    validate_static_msvc_runtime(herdr_exe.read_bytes(), herdr_exe.name)
+    validate_static_msvc_runtime(momo_exe.read_bytes(), momo_exe.name)
 
     acquire_package(metadata["package"], package_path)
     bundle = metadata["bundles"][architecture]
     metadata_root = metadata_path.resolve().parent
 
     with zipfile.ZipFile(package_path) as archive, tempfile.TemporaryDirectory(
-        prefix="herdr-conpty-stage-", dir=output_dir.parent
+        prefix="momo-conpty-stage-", dir=output_dir.parent
     ) as temporary:
         validate_nuspec(archive, metadata["package"])
         staging = Path(temporary) / "bundle"
         staging.mkdir()
-        shutil.copy2(herdr_exe, staging / "herdr.exe")
+        shutil.copy2(momo_exe, staging / "momo.exe")
 
         for item in bundle["files"]:
             try:
@@ -314,7 +314,7 @@ def stage_bundle(
 
 
 def expected_stage_files(metadata: dict[str, Any], architecture: str) -> set[str]:
-    files = {"herdr.exe", MARKER_PATH.as_posix()}
+    files = {"momo.exe", MARKER_PATH.as_posix()}
     files.update(item["destination"] for item in metadata["bundles"][architecture]["files"])
     files.update(item["destination"] for item in metadata["notices"])
     return files
@@ -337,7 +337,7 @@ def validate_stage(metadata_path: Path, architecture: str, stage_dir: Path) -> N
     # The executable is not hash-pinned (it changes every build), so re-check
     # it here to cover a direct archive of an existing stage or a swap after
     # staging.
-    validate_static_msvc_runtime((stage_dir / "herdr.exe").read_bytes(), "herdr.exe")
+    validate_static_msvc_runtime((stage_dir / "momo.exe").read_bytes(), "momo.exe")
     for item in metadata["bundles"][architecture]["files"]:
         path = stage_dir / PurePosixPath(item["destination"])
         actual_hash = sha256_file(path)
@@ -362,14 +362,14 @@ def archive_bundle(
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Package Herdr with Microsoft's pinned ConPTY runtime")
+    parser = argparse.ArgumentParser(description="Package MoMo with Microsoft's pinned ConPTY runtime")
     parser.add_argument("--metadata", type=Path, default=DEFAULT_METADATA)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     stage = subparsers.add_parser("stage")
     stage.add_argument("--architecture", choices=("x86_64",), default="x86_64")
     stage.add_argument("--package", type=Path, required=True)
-    stage.add_argument("--herdr-exe", type=Path, required=True)
+    stage.add_argument("--momo-exe", type=Path, required=True)
     stage.add_argument("--output-dir", type=Path, required=True)
 
     archive = subparsers.add_parser("archive")
@@ -386,7 +386,7 @@ def main() -> None:
             args.metadata,
             args.architecture,
             args.package,
-            args.herdr_exe,
+            args.momo_exe,
             args.output_dir,
         )
     else:
